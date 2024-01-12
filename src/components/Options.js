@@ -1,13 +1,13 @@
-function Options({ question, dispatch, answer }) {
+function Options({ filterQuestions, dispatch, answer }) {
   const hasAnswered = answer !== null;
 
   return (
     <div className="options">
-      {question.options.map((option, index) => (
+      {filterQuestions.options.map((option, index) => (
         <button
           className={`btn btn-option ${index === answer ? "answer" : ""} ${
             hasAnswered
-              ? index === question.correctOption
+              ? index === filterQuestions.correctOption
                 ? "correct"
                 : "wrong"
               : ""

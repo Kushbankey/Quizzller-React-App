@@ -12,10 +12,11 @@ import FinishScreen from "./FinishScreen";
 import Footer from "./Footer";
 import Timer from "./Timer";
 
-const SECS_PER_QUESTIONS = 30;
+const SECS_PER_QUESTIONS = 20;
 
 const initialState = {
   questions: [],
+  filterQuestions: [],
 
   //loading, error, ready, active, finished
   status: "loading",
@@ -24,6 +25,8 @@ const initialState = {
   points: 0,
   highScore: 0,
   secondsRemaining: null,
+  difficulty: "",
+  numberOfQues: 1,
 };
 
 function reducer(state, action) {
@@ -32,6 +35,7 @@ function reducer(state, action) {
       return {
         ...state,
         questions: action.payload,
+        filterQuestions: action.payload,
         status: "ready",
       };
     case "dataFailed":
@@ -43,10 +47,10 @@ function reducer(state, action) {
       return {
         ...state,
         status: "active",
-        secondsRemaining: state.questions.length * SECS_PER_QUESTIONS,
+        secondsRemaining: state.filterQuestions.length * SECS_PER_QUESTIONS,
       };
     case "newAnswer":
-      const question = state.questions.at(state.index);
+      const question = state.filterQuestions.at(state.index);
       return {
         ...state,
         answer: action.payload,
@@ -71,8 +75,8 @@ function reducer(state, action) {
     case "restart":
       return {
         ...initialState,
-        questions: state.questions,
-        status: "active",
+        filterQuestions: state.filterQuestions,
+        status: "ready",
         highScore: state.highScore,
       };
     case "tick":
@@ -80,6 +84,18 @@ function reducer(state, action) {
         ...state,
         secondsRemaining: state.secondsRemaining - 1,
         status: state.secondsRemaining === 0 ? "finished" : state.status,
+      };
+    case "setDifficulty":
+      return {
+        ...state,
+        difficulty: action.payload,
+        numberOfQues: 1,
+      };
+    case "selectNumQues":
+      return {
+        ...state,
+        filterQuestions: state.filterQuestions.slice(0, action.payload),
+        numberOfQues: action.payload,
       };
 
     default:
@@ -89,22 +105,50 @@ function reducer(state, action) {
 
 export default function App() {
   const [
-    { questions, status, index, answer, points, highScore, secondsRemaining },
+    {
+      questions,
+      filterQuestions,
+      status,
+      index,
+      answer,
+      points,
+      highScore,
+      secondsRemaining,
+      difficulty,
+      numberOfQues,
+    },
     dispatch,
   ] = useReducer(reducer, initialState);
 
-  const numQuestions = questions.length;
-  const maxPossiblePoints = questions.reduce(
-    (prev, cur) => prev + cur.points,
-    0
-  );
+  function filterQuestionsByDifficulty(questions, difficulty) {
+    switch (difficulty) {
+      case "easy":
+        return questions.filter((question) => question.points === 10);
+      case "medium":
+        return questions.filter((question) => question.points === 20);
+      case "hard":
+        return questions.filter((question) => question.points === 30);
+      default:
+        // If difficulty is not specified or 'all', return all questions
+        return questions;
+    }
+  }
 
-  useEffect(function () {
-    fetch("https://my-json-server.typicode.com/Kushbankey/fakeApi/questions")
-      .then((res) => res.json())
-      .then((data) => dispatch({ type: "dataReceived", payload: data }))
-      .catch((err) => dispatch({ type: "dataFailed" }));
-  }, []);
+  useEffect(
+    function () {
+      fetch("https://my-json-server.typicode.com/Kushbankey/fakeApi/questions")
+        .then((res) => res.json())
+        .then((data) => {
+          const filteredQuestions = filterQuestionsByDifficulty(
+            data,
+            difficulty
+          );
+          dispatch({ type: "dataReceived", payload: filteredQuestions });
+        })
+        .catch((err) => dispatch({ type: "dataFailed" }));
+    },
+    [difficulty]
+  );
 
   return (
     <div className="app">
@@ -114,19 +158,27 @@ export default function App() {
         {status === "loading" && <Loader />}
         {status === "error" && <Error />}
         {status === "ready" && (
-          <StartScreen numQuestions={numQuestions} dispatch={dispatch} />
+          <StartScreen
+            numQuestions={questions.length}
+            dispatch={dispatch}
+            numberOfQues={numberOfQues}
+            difficulty={difficulty}
+          />
         )}
         {status === "active" && (
           <>
             <Progress
               index={index}
-              numQuestions={numQuestions}
+              numQuestions={filterQuestions.length}
               points={points}
-              maxPossiblePoints={maxPossiblePoints}
+              maxPossiblePoints={filterQuestions.reduce(
+                (prev, cur) => prev + cur.points,
+                0
+              )}
               answer={answer}
             />
             <Question
-              question={questions[index]}
+              filterQuestions={filterQuestions[index]}
               dispatch={dispatch}
               answer={answer}
             />
@@ -136,7 +188,7 @@ export default function App() {
                 dispatch={dispatch}
                 answer={answer}
                 index={index}
-                numQuestions={numQuestions}
+                numQuestions={filterQuestions.length}
               />
             </Footer>
           </>
@@ -144,7 +196,10 @@ export default function App() {
         {status === "finished" && (
           <FinishScreen
             points={points}
-            maxPossiblePoints={maxPossiblePoints}
+            maxPossiblePoints={filterQuestions.reduce(
+              (prev, cur) => prev + cur.points,
+              0
+            )}
             highScore={highScore}
             dispatch={dispatch}
           />
